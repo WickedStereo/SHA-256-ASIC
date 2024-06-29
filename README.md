@@ -7,4 +7,13 @@ This repository contains all the necessary design files and configuration files 
 To run this project and generate the GDS-II files using OpenROAD, follow the steps below:
 1. Install OpenROAD-flow-scripts, refer this [page](https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts).
 2. The design directory structure is similar to that of ORFS. Add the files in the designs directory to the ORFS after building it.
-3. In the `OpenROAD-flow-scripts/flow/` directory, run the RTL to GDS-II flow using the `make DESIGN_CONFIG=./designs/nangate45/config.mk` command.
+3. In the `OpenROAD-flow-scripts/flow/` directory, run the RTL to GDS-II flow using the command `make DESIGN_CONFIG=./designs/nangate45/config.mk`.
+
+## Contributing
+Contributions to improve the design are welcome. Please submit a pull request or open an issue to discuss proposed changes.
+
+## Project Details
+Authors: Devashish Gawde, Anish Miryala, Navin Nadar
+Institution: New York University
+Date: May 16, 2024
+
