@@ -13,7 +13,7 @@ To run this project and generate the GDS-II files using OpenROAD, follow the ste
 Contributions to improve the design are welcome. Please submit a pull request or open an issue to discuss proposed changes.
 
 ## Project Details
-Authors: Devashish Gawde, Anish Miryala, Navin Nadar
-Institution: New York University
+Authors: Devashish Gawde, Anish Miryala, Navin Nadar \
+Institution: New York University \
 Date: May 16, 2024
 
