@@ -20,16 +20,57 @@
 
 module message_scheduler(
     input clk,
+    input reset,
     input [1:0] block_count,
     input [511:0] block_in,
     output logic trigger,
     output logic [31:0] W
     );
     
-    logic [0:2047] Word;
-    logic [0:511] in;
+    logic [2047:0] Word;
+    logic [511:0] in;    
+    logic [6:0] j = 0;  // Scheduler step counter
+    logic [5:0] count;
+    logic [6:0] k = 0;  // Output index
+    int unsigned i;
     
+	// Word generation phases:
+	// - First 16 words: Direct message block extraction
+	// - Remaining 48 words: Sigma-mixed combinations
+	
     assign in = block_in;
+    assign count = j[5:0];
+
+    always_ff @(posedge clk)
+    begin
+        if (reset || (j == 65)) begin
+            trigger <= 0;
+            j <= 'd0;
+        end
+        else if (count < 16) begin
+            Word[32*count +: 32] <= in[512 - 32*(count+1) +: 32];     // Load first 16 words
+            trigger <= 1;
+            j <= j + 'd1;
+        end
+        else begin 
+            Word[32*count +: 32] <= sigma1(Word[32*(count-2) +: 32]) + Word[32*(count-7) +: 32] + sigma0(Word[32*(count-15) +: 32]) + Word[32*(count-16) +: 32];
+            trigger <= 1;
+            j <= j + 'd1;
+        end        
+    end
+       
+    // Output logic
+    always_ff @(posedge clk or posedge reset)
+    begin
+        if (reset) begin
+            k <= 0;
+        end 
+        else if(trigger) begin
+            W <= Word[32*k +: 32];
+            k <= k + 1;
+        end
+    end
+    
     
 // Functions
     function automatic [31:0] rightshift;
@@ -63,44 +104,5 @@ module message_scheduler(
         sigma0 = res1 ^ res2 ^ res3;
     endfunction
     
-	
-	// Word generation phases:
-	// - First 16 words: Direct message block extraction
-	// - Remaining 48 words: Sigma-mixed combinations
-
-    logic [6:0] j = 'd0; 
-    logic [5:0] count;
-    logic [6:0] k = 'd0;
-    int unsigned i;
-    
-    assign count = j[5:0];
-    
-    always@(posedge clk) // j counter
-        j <= j + 1;
-
-    always@ (posedge clk)
-    begin
-        if (!j[6] && count < 'd16) begin
-            Word[32*count +: 32] <= in[32*count +: 32];
-            trigger <= 1;
-        end
-        else if(j == 'd65) begin
-            trigger <= 0;
-            j <= 'd0;
-        end
-        else if(!j[6] && ('d15 < j)) begin 
-            Word[32*count +: 32] <= sigma1(Word[32*(count-2) +: 32]) + Word[32*(count-7) +: 32] + sigma0(Word[32*(count-15) +: 32]) + Word[32*(count-16) +: 32];
-            trigger <= 1;
-        end
-    end
-       
-    // Output logic
-    always@ (posedge clk)
-    begin
-        if(!k[6] && trigger) begin
-            W <= Word[32*k +: 32];
-            k <= k + 1;
-        end
-    end
     
 endmodule
