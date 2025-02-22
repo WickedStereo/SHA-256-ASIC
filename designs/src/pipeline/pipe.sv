@@ -1,5 +1,5 @@
 //////////////////////////////////////////////////////////////////////////////////
-// Module: pipe
+// Module: core_pipe
 // Function: SHA-256 Compression Pipeline
 // Pipeline:
 //   7-Stage State Machine (INIT → PIPE_BEG_1_STAGE → ... → OUTPUT)
@@ -24,10 +24,11 @@
 // OUTPUT          : Final hash combination
 
 
-module pipe (
+module core_pipe (
     input clk,
     input reset,    
     input block_count,
+    input ready,
     input [31:0] W,
     input [255:0] H_in,
     output logic [255:0] H_out,
@@ -41,7 +42,7 @@ module pipe (
               FULL_PIP_3_STAGE  = 3,
               PIPE_END_2_STAGE  = 4,
               PIPE_END_1_STAGE  = 5,
-              OUTPUT            = 6;
+              OUTPUT_STAGE      = 6;
     
     parameter a = 0, b = 1, c = 2, d = 3, e = 4, f = 5, g = 6, h =7;
 
@@ -56,27 +57,35 @@ module pipe (
                             32'h748f82ee, 32'h78a5636f, 32'h84c87814, 32'h8cc70208, 32'h90befffa, 32'ha4506ceb, 32'hbef9a3f7, 32'hc67178f2};
 
 
-    reg [8:0] counter;
-    reg [3:0] state, next_state;
-    reg [31:0] result [0:7]; 
-    reg [31:0] new_result [0:7];
-    reg [31:0] M, L;
-    reg update_M, update_L;
-    reg update_a, update_b, update_c, update_d, update_e, update_f, update_g, update_h;
-    wire [31:0] w, k;
+    logic [8:0] counter;
+    logic [3:0] state, next_state;
+    logic [31:0] result [0:7]; 
+    logic [31:0] new_result [0:7];
+    logic [31:0] M, L;
+    logic update_M, update_L;
+    logic update_a, update_b, update_c, update_d, update_e, update_f, update_g, update_h;
+    logic [31:0] w, k;
     logic [31:0] new_a, new_e, new_M, new_L;
-    wire [31:0] mux_1, mux_2;
-    logic [255:0] H_o = 0;
+    logic [31:0] mux_1, mux_2;
+    logic [255:0] H_o;
 
     always_ff @(posedge clk) begin
         if (reset) begin
             counter <= 9'd0;
             state <= INIT;
-            {result[0],result[1],result[2],result[3],result[4],result[5],result[6],result[7]} <= H_in;
+            result[0] <= 32'h6a09e667;
+            result[1] <= 32'hbb67ae85;
+            result[2] <= 32'h3c6ef372;
+            result[3] <= 32'ha54ff53a;
+            result[4] <= 32'h510e527f;
+            result[5] <= 32'h9b05688c;
+            result[6] <= 32'h1f83d9ab;
+            result[7] <= 32'h5be0cd19;
+
             M <= 0;
             L <= 0;
         end
-        else begin
+        else if (ready) begin
             counter <= counter + 9'd1;
             state <= next_state;
             result[0] <= new_result[0];
@@ -141,17 +150,23 @@ module pipe (
                 H_o = 0;
             end
             PIPE_END_1_STAGE: begin
-                next_state = OUTPUT;
+                next_state = OUTPUT_STAGE;
                 {new_result[0], new_result[1], new_result[2], new_result[3]} = {new_a, new_result[0], new_result[1], new_result[2]};
                 update_M = 0;
                 update_L = 1;
                 H_o = 0;
             end
-            OUTPUT: begin
+            OUTPUT_STAGE: begin
                 next_state = INIT;
                 H_o = {result[0],result[1],result[2],result[3],result[4],result[5],result[6],result[7]} + H_in;
                 update_M = 0;
                 update_L = 0;
+            end
+            default: begin
+                next_state = INIT;
+                update_M = 0;
+                update_L = 0;
+                H_o = 0;
             end
         endcase
     end
