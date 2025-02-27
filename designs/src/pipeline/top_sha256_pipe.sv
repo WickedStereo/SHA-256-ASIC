@@ -1,5 +1,6 @@
+`timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Module: sha256pipetop 
+// Module: top_sha256_pipe 
 // Function: Pipelined SHA-256 Cryptographic Core
 // Architecture:
 //   - 3-Stage Pipeline: Pad → Schedule → Compress
@@ -21,23 +22,24 @@
 // 3. Compression Stage (pipe)
 
 
-module sha256pipetop #(parameter MSG_BITS = 96, parameter PADDED_BITS = 512) 
+module top_sha256_pipe  #(
+    parameter MSG_BITS = 96, 
+    parameter PADDED_BITS = 512) 
 (
     input clk,
     input reset,
+    input start,
     input [MSG_BITS-1:0] message,
-    output trigger,
+    output valid,
     output [255:0] H_out
     );
     
     // Wires
     logic [PADDED_BITS-1:0] padded_message; 
-    logic block_count;
-    logic done;
-    logic [31:0] W_in;
-    reg [31:0] W_in_delay;
+    logic [1:0] block_count = 1;
+    logic [0:63][31:0] W_in;
     logic [255:0] H;
-    //logic done_sch = 1;
+    logic ready;
     
     // Constants
 	// Initial hash values (H0) from NIST FIPS 180-4 
@@ -50,28 +52,30 @@ module sha256pipetop #(parameter MSG_BITS = 96, parameter PADDED_BITS = 512)
     .padded_message(padded_message)
     );
     
+    
     message_scheduler myscheduler(
     .clk(clk),
+    .reset(reset),
+    .ready(start),
     .block_count(block_count),
     .block_in(padded_message),
-    .trigger(trigger),
-    .W(W_in)
+    .done(ready),
+    .block_out(W_in)
     );
     
-    always_ff@(posedge clk) W_in_delay = W_in;
-    
-    pipe mypipe(
+
+    core_pipe mypipe(
     .clk(clk),
     .reset(reset),
     .block_count(block_count),
-    .W(W_in_delay),
+    .ready(ready),
+    .W(W_in),
     .H_in(H0),
     .H_out(H),
-    .trigger(done)  
+    .trigger(valid)  
     );
     
     assign H_out = H;
     
     
 endmodule
- 

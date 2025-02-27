@@ -7,7 +7,7 @@
 // Ports:  
 //   clk        - System clock
 //   block_in	- Input block [BLOCK_SIZE-1:0]
-//   W          - Scheduled word [31:0]
+//   block_out  - Scheduled block
 // Features:
 //   - 64-stage word generator
 //   - Implements σ0/σ1 mixing functions
@@ -21,17 +21,18 @@
 module message_scheduler(
     input clk,
     input reset,
+    input ready,
     input [1:0] block_count,
     input [511:0] block_in,
-    output logic trigger,
-    output logic [31:0] W
+    output logic done,
+    output logic [0:63][31:0] block_out
     );
     
-    logic [2047:0] Word;
+    logic [0:63][31:0]Word;
     logic [511:0] in;    
     logic [6:0] j = 0;  // Scheduler step counter
     logic [5:0] count;
-    logic [6:0] k = 0;  // Output index
+//    logic [6:0] k = 0;  // Output index
     int unsigned i;
     
 	// Word generation phases:
@@ -43,33 +44,32 @@ module message_scheduler(
 
     always_ff @(posedge clk)
     begin
-        if (reset || (j == 65)) begin
-            trigger <= 0;
+        if (reset || (j == 64) || ready) begin
             j <= 'd0;
         end
-        else if (count < 16) begin
-            Word[32*count +: 32] <= in[512 - 32*(count+1) +: 32];     // Load first 16 words
-            trigger <= 1;
-            j <= j + 'd1;
-        end
-        else begin 
-            Word[32*count +: 32] <= sigma1(Word[32*(count-2) +: 32]) + Word[32*(count-7) +: 32] + sigma0(Word[32*(count-15) +: 32]) + Word[32*(count-16) +: 32];
-            trigger <= 1;
-            j <= j + 'd1;
-        end        
+        else if (!done) begin
+            if (count < 16) begin
+                Word[count] <= in[512 - 32*(count+1) +: 32];     // Load first 16 words
+                j <= j + 'd1;
+            end
+            else begin 
+                Word[count] <= sigma1(Word[count - 2]) + Word[count - 7] + sigma0(Word[count - 15]) + Word[count - 16];
+                j <= j + 'd1;
+            end
+       end        
     end
-       
-    // Output logic
-    always_ff @(posedge clk or posedge reset)
-    begin
-        if (reset) begin
-            k <= 0;
-        end 
-        else if(trigger) begin
-            W <= Word[32*k +: 32];
-            k <= k + 1;
+    
+    always_comb begin
+        if (reset || ready) begin
+            block_out = 'd0;
+            done = 0;
+        end
+        else if (j[6]) begin
+            block_out = Word;
+            done = 1;
         end
     end
+    
     
     
 // Functions

@@ -29,7 +29,7 @@ module core_pipe (
     input reset,    
     input block_count,
     input ready,
-    input [31:0] W,
+    input [0:63][31:0] W,
     input [255:0] H_in,
     output logic [255:0] H_out,
     output logic trigger
@@ -59,15 +59,13 @@ module core_pipe (
 
     logic [8:0] counter;
     logic [3:0] state, next_state;
-    logic [31:0] result [0:7]; 
-    logic [31:0] new_result [0:7];
+    logic [0:7][31:0] result, new_result; 
     logic [31:0] M, L;
     logic update_M, update_L;
     logic update_a, update_b, update_c, update_d, update_e, update_f, update_g, update_h;
     logic [31:0] w, k;
     logic [31:0] new_a, new_e, new_M, new_L;
     logic [31:0] mux_1, mux_2;
-    logic [255:0] H_o;
 
     always_ff @(posedge clk) begin
         if (reset) begin
@@ -88,90 +86,75 @@ module core_pipe (
         else if (ready) begin
             counter <= counter + 9'd1;
             state <= next_state;
-            result[0] <= new_result[0];
-            result[1] <= new_result[1];
-            result[2] <= new_result[2];
-            result[3] <= new_result[3];
-            result[4] <= new_result[4];
-            result[5] <= new_result[5];
-            result[6] <= new_result[6];
-            result[7] <= new_result[7];
+            result <= new_result;
             if (update_M) M <= new_M;
             if (update_L) L <= new_L;
         end
     end
 
     always_comb begin
-        case (state)
-            INIT:begin
-                next_state = PIPE_BEG_1_STAGE;
-                new_result[0] = result[0];
-                new_result[1] = result[1];
-                new_result[2] = result[2];
-                new_result[3] = result[3];
-                new_result[4] = result[4];
-                new_result[5] = result[5];
-                new_result[6] = result[6];
-                new_result[7] = result[7];
-                update_M = 0;
-                update_L = 0;
-                H_o = 0;
-            end
-            PIPE_BEG_1_STAGE: begin
-                next_state = PIPE_BEG_2_STAGE;
-                update_M = 1;
-                update_L = 0;
-                H_o = 0;
-            end
-            PIPE_BEG_2_STAGE: begin
-                next_state = FULL_PIP_3_STAGE;
-                //new_result[4:7] = {new_e, result[4:6]};
-                new_result[4] = new_e;
-                new_result[5] = result[4];
-                new_result[6] = result[5];
-                new_result[7] = result[6];
-                update_M = 1;
-                update_L = 1;
-                H_o = 0;
-            end
-            FULL_PIP_3_STAGE: begin
-                if (counter < 9'd64) next_state = FULL_PIP_3_STAGE;
-                else next_state = PIPE_END_2_STAGE;
-                {new_result[0],new_result[1],new_result[2],new_result[3],new_result[4],new_result[5],new_result[6],new_result[7]} = {new_a, result[0], result[1], result[2], new_e, result[4], result[5], result[6]};
-                update_M = 1;
-                update_L = 1;
-                H_o = 0;
-            end
-            PIPE_END_2_STAGE: begin
-                next_state = PIPE_END_1_STAGE;
-                {new_result[0],new_result[1],new_result[2],new_result[3],new_result[4],new_result[5],new_result[6],new_result[7]} = {new_a, result[0], result[1], result[2], new_e, result[4], result[5], result[6]};
-                update_M = 1;
-                update_L = 1;
-                H_o = 0;
-            end
-            PIPE_END_1_STAGE: begin
-                next_state = OUTPUT_STAGE;
-                {new_result[0], new_result[1], new_result[2], new_result[3]} = {new_a, new_result[0], new_result[1], new_result[2]};
-                update_M = 0;
-                update_L = 1;
-                H_o = 0;
-            end
-            OUTPUT_STAGE: begin
-                next_state = INIT;
-                H_o = {result[0],result[1],result[2],result[3],result[4],result[5],result[6],result[7]} + H_in;
-                update_M = 0;
-                update_L = 0;
-            end
-            default: begin
-                next_state = INIT;
-                update_M = 0;
-                update_L = 0;
-                H_o = 0;
-            end
-        endcase
+        if (ready) begin
+            case (state)
+                INIT:begin
+                    next_state = PIPE_BEG_1_STAGE;
+                    new_result = result;
+                    update_M = 0;
+                    update_L = 0;
+                end
+                PIPE_BEG_1_STAGE: begin
+                    next_state = PIPE_BEG_2_STAGE;
+                    update_M = 1;
+                    update_L = 0;
+                end
+                PIPE_BEG_2_STAGE: begin
+                    next_state = FULL_PIP_3_STAGE;
+                    //new_result[4:7] = {new_e, result[4:6]};
+                    new_result[4] = new_e;
+                    new_result[5] = result[4];
+                    new_result[6] = result[5];
+                    new_result[7] = result[6];
+                    update_M = 1;
+                    update_L = 1;
+                end
+                FULL_PIP_3_STAGE: begin
+                    if (counter < 9'd64) next_state = FULL_PIP_3_STAGE;
+                    else next_state = PIPE_END_2_STAGE;
+                    {new_result[0],new_result[1],new_result[2],new_result[3],new_result[4],new_result[5],new_result[6],new_result[7]} = {new_a, result[0], result[1], result[2], new_e, result[4], result[5], result[6]};
+                    update_M = 1;
+                    update_L = 1;
+                end
+                PIPE_END_2_STAGE: begin
+                    next_state = PIPE_END_1_STAGE;
+                    {new_result[0],new_result[1],new_result[2],new_result[3],new_result[4],new_result[5],new_result[6],new_result[7]} = {new_a, result[0], result[1], result[2], new_e, result[4], result[5], result[6]};
+                    update_M = 1;
+                    update_L = 1;
+                end
+                PIPE_END_1_STAGE: begin
+                    next_state = OUTPUT_STAGE;
+                    {new_result[0], new_result[1], new_result[2], new_result[3]} = {new_a, new_result[0], new_result[1], new_result[2]};
+                    update_M = 0;
+                    update_L = 1;
+                end
+                OUTPUT_STAGE: begin
+                    next_state = INIT;
+                    update_M = 0;
+                    update_L = 0;
+                end
+                default: begin
+                    next_state = INIT;
+                    update_M = 0;
+                    update_L = 0;
+                end
+            endcase
+        end
+        else begin
+            next_state = INIT;
+            update_M = 0;
+            update_L = 0;
+        end
     end
 
-    assign w = (counter <= 9'd64) ? W : 0;
+    assign w = (counter <= 9'd64) ? W[counter - 1] : 0;
     assign k = (counter <= 9'd64) ? K[32*(counter - 1) +: 32] : 0;
     assign new_M = w + k + mux_2;
     assign new_L = S1(result[e]) + ch(result[e], result[f], result[g]) + M;
@@ -179,8 +162,9 @@ module core_pipe (
     assign new_e = mux_1 + S1(result[e]) + ch(result[e], result[f], result[g]) + M;
     assign mux_1 = (state <= 3'd2) ? result[3] : result[2];
     assign mux_2 = (state <= 3'd1) ? result[7] : result[6];
+    
     assign trigger = counter == 9'd68;
-    assign H_out = H_o;
+    assign H_out = trigger ? {result[0],result[1],result[2],result[3],result[4],result[5],result[6],result[7]} + H_in : 0;
 
 
 function automatic [31:0] ROTR;
